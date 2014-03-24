@@ -7,15 +7,21 @@ pageSize = 1024
 
 divUp q d = 0 - (q `div` (-d))
 
-data Node = Table String Int Int
+data Field = Field { fieldName :: String
+                   , fieldWidth :: Int }
+
+data Node = Table String Int [Field]
           | Join JoinType Node Node Int
           | Select Int Node
-          | Project Int Node
+          | Project [Field] Node
 
 data JoinType = BNLJoin Int
               | HashJoin Int
               | MergeJoin Int Int
               | IndexNLJoin Int
+
+fields (Table tn _ fs) = [ Field (tn ++ "." ++ fn) fsz | Field fn fsz <- fs ]
+fields (Project fs _) = fs
 
 showJoin (BNLJoin b) = "BNL Join (rb=" ++ show b ++ ")"
 showJoin (IndexNLJoin b) = "Index Join (rb=" ++ show b ++ ")"
@@ -40,7 +46,7 @@ tupleCount (Project _ node) = tupleCount node
 tupleCount (Select sel node) = tupleCount node `divUp` sel
 tupleCount (Join _ r s sel) = (tupleCount r * tupleCount s) `divUp` sel
 
-tupleSize (Table _ _ size) = size
+tupleSize (Table _ _ fields) = sum (fieldWidth `map` fields)
 tupleSize (Join _ r s _) = tupleSize r + tupleSize s
 tupleSize (Select _ n) = tupleSize n
 tupleSize (Project size _) = size
@@ -65,9 +71,9 @@ seekCost (Join typ r s _) = case typ of
 seekCost (Select _ node) = seekCost node
 seekCost (Project _ node) = seekCost node
 
-students = Table "Students" 16000 64
-taken = Table "Taken" 256000 8
-courses = Table "Courses" 1600 64
+students = Table "Students" 16000 [Field "name" 60, Field "sid" 4]
+taken = Table "Taken" 256000 [Field "sid" 4, Field "cid" 4]
+courses = Table "Courses" 1600 [Field "cname" 60, Field "cid" 4]
 
 st = Join (BNLJoin 10) students taken (tupleCount students)
 
