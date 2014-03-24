@@ -40,6 +40,8 @@ right = head . tail . nodeChildren
 
 tableFields (Table tn _ fs) =  [ Field (tn ++ "." ++ fn) fsz | Field fn fsz <- fs ]
 
+tableTupleCount (Table _ cnt _) = cnt
+
 fields (Scan t) = tableFields t
 fields (Select _ n) = fields n
 fields (Project fs _) = fs
@@ -105,6 +107,11 @@ seekCost (Join typ r s)  = case typ of
         IndexNLJoin br -> (pageCount r `divUp` br) + indexDepth * tupleCount r
 seekCost (Select _ node) = seekCost node
 seekCost (Project _ node) = seekCost node
+
+leftPKeyJoin  j r s = Select (tupleCount r) $ Join j r s 
+rightPKeyJoin j r s = Select (tupleCount s) $ Join j r s 
+
+pkeyLookup t = Index t (tableTupleCount t)
 
 -- Test code
 {-
