@@ -122,12 +122,16 @@ rightPKeyJoin j r s = Select (tupleCount s) $ Join j r s
 
 pkeyLookup t = Index t (tableTupleCount t)
 
+joinToIndex sel (Join (BNLJoin br) r (Scan t)) = [Join (IndexNLJoin br) r (Index t sel)]
+joinToIndex _ _ = []
+
 tryJoins :: Node -> [Node]
 tryJoins (Join (BNLJoin br) r s) = do
 	r' <- tryJoins r
 	s' <- tryJoins s
-	j <- [BNLJoin br, IndexNLJoin br, HashJoin br]
+	j <- [BNLJoin br, HashJoin br]
 	[Join j r' s']
+
 tryJoins (Project fs n) = fmap (Project fs) (tryJoins n)
 tryJoins (Select s n) = fmap (Select s) (tryJoins n)
 tryJoins n = [n]
