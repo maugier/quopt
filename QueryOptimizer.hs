@@ -1,6 +1,7 @@
 module QueryOptimizer where
 
-import Control.Monad.Reader
+import Data.List (minimumBy)
+import Data.Ord (comparing)
 
 tSeek = 0.01
 tRead = 0.0001
@@ -15,6 +16,9 @@ cost n = fromIntegral (readCost n) * tRead +
 
 data Field = Field { fieldName :: String
                    , fieldWidth :: Int }
+
+instance Show Field where
+	show = fieldName
 
 data Table = Table String Int [Field]
 
@@ -54,22 +58,27 @@ showJoin (MergeJoin rb sb) = "Merge Join (rb=" ++ show rb ++ ", sb=" ++ show sb 
 showJoin (HashJoin rb) = "Hash Join (b=" ++ show rb ++ ")"
 
 
-showTable (Table name count fields) = concat [name,
-	" (",show count, " tuples @ ", show (sum $ fieldWidth `map` fields), ")"]
+showTable (Table name _ _) = name
 	
 showNode (Scan table) = "SCAN " ++ showTable table
 showNode (Join typ _ _) = showJoin typ
 showNode (Select _ _) = "FILTER"
-showNode (Project _ _) = "PROJECT"
+showNode (Project fs _) = "PROJECT " ++ show fs
 showNode (Index t sel) = "INDEX SCAN " ++ showTable t
 
-showNodeCost n = concat [showNode n, " [", show (readCost n), " reads, ",
-       show (seekCost n), " seeks]\n"]
+showNodeSize n = concat [showNode n, " [ ", show (tupleCount n), " @ ", 
+                         show (tupleSize n), " bytes = ", 
+			 show (pageCount n) ," pages ]\n"]
 
-showTree = putStrLn . showTree' 0 where
-        showTree' i x = concat (replicate i "  ") ++ showNodeCost x
-	   ++ concatMap (showTree' (i+1)) (nodeChildren x)
+showNodeCost n = concat [showNode n, " (", show (readCost n), " pages, ",
+       show (seekCost n), " seeks)\n"]
 
+showTreeWith f = putStrLn . showTree' 0 where
+	showTree' i x = replicate i ' ' ++ f x ++ concatMap
+		(showTree' (i+1)) (nodeChildren x)
+
+showTreeCost = showTreeWith showNodeCost
+showTreeSize = showTreeWith showNodeSize
 
 
 tupleCount (Scan (Table _ count _)) = count
@@ -113,4 +122,14 @@ rightPKeyJoin j r s = Select (tupleCount s) $ Join j r s
 
 pkeyLookup t = Index t (tableTupleCount t)
 
+tryJoins :: Node -> [Node]
+tryJoins (Join (BNLJoin br) r s) = do
+	r' <- tryJoins r
+	s' <- tryJoins s
+	j <- [BNLJoin br, IndexNLJoin br, HashJoin br]
+	[Join j r' s']
+tryJoins (Project fs n) = fmap (Project fs) (tryJoins n)
+tryJoins (Select s n) = fmap (Select s) (tryJoins n)
+tryJoins n = [n]
 
+optimize = minimumBy (comparing cost) . tryJoins
