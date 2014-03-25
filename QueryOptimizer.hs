@@ -113,28 +113,4 @@ rightPKeyJoin j r s = Select (tupleCount s) $ Join j r s
 
 pkeyLookup t = Index t (tableTupleCount t)
 
--- Test code
-{-
-name = Field "name" 60
-sid = Field "sid" 4
-cid = Field "cid" 4
-cname = Field "cname" 60
 
-students = Table "Students" 16000 [name,sid]
-taken = Table "Taken" 256000 [sid,cid]
-courses = Table "Courses" 1600 [cname,cid]
-
-st = Join (BNLJoin 10) (Scan students) (Scan taken) (tupleCount (Scan students))
-
-pi_st = Project [name,cid] st
-
-final1 = Join (BNLJoin 10) pi_st (Scan courses) (tupleCount pi_st * 10)
-final2 = Join (BNLJoin 10)
-		(Project [sid] 
-		  (Join (BNLJoin 10) 
-		     (Project [cid] (Select 1600 (Scan courses)))
-                     (Scan taken)
-		     (256000 `div` 160)))
-(Scan students) 16000
-
--}
