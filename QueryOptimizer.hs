@@ -126,12 +126,11 @@ joinToIndex sel (Join (BNLJoin br) r (Scan t)) = [Join (IndexNLJoin br) r (Index
 joinToIndex _ _ = []
 
 tryJoins :: Node -> [Node]
-tryJoins (Join (BNLJoin br) r s) = do
+tryJoins (Join (IndexNLJoin br) r (Index t sel)) = do
 	r' <- tryJoins r
-	s' <- tryJoins s
-	j <- [BNLJoin br, HashJoin br]
-	[Join j r' s']
-
+	[ Join (IndexNLJoin br) r' (Index t sel),
+	  Join (HashJoin br) r' (Scan t),
+	  Join (BNLJoin br) r' (Scan t) ]
 tryJoins (Project fs n) = fmap (Project fs) (tryJoins n)
 tryJoins (Select s n) = fmap (Select s) (tryJoins n)
 tryJoins n = [n]
